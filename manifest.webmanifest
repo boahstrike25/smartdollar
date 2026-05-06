@@ -1,0 +1,34 @@
+{
+  "name": "$martDollar — Smart Personal Finance",
+  "short_name": "$martDollar",
+  "description": "A smart, friendly, private, free personal finance app to manage, save, invest, and grow your money. Local-first PWA.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["finance", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2314b8a6'/%3E%3Cstop offset='100%25' stop-color='%23115e59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='192' height='192' rx='42' fill='url(%23g)'/%3E%3Ctext x='96' y='132' font-size='112' text-anchor='middle' font-family='system-ui,sans-serif' fill='white' font-weight='800'%3E%24%3C/text%3E%3Cpath d='M150 26 L156 41 L171 47 L156 53 L150 68 L144 53 L129 47 L144 41 Z' fill='%23fcd34d'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2314b8a6'/%3E%3Cstop offset='100%25' stop-color='%23115e59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Ctext x='256' y='352' font-size='300' text-anchor='middle' font-family='system-ui,sans-serif' fill='white' font-weight='800'%3E%24%3C/text%3E%3Cpath d='M400 70 L416 110 L456 126 L416 142 L400 182 L384 142 L344 126 L384 110 Z' fill='%23fcd34d'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2314b8a6'/%3E%3Cstop offset='100%25' stop-color='%23115e59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' fill='url(%23g)'/%3E%3Ctext x='256' y='352' font-size='300' text-anchor='middle' font-family='system-ui,sans-serif' fill='white' font-weight='800'%3E%24%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

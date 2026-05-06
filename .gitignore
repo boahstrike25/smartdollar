@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Node (only if you ever opt into npm tooling)
+node_modules/
+npm-debug.log*
+
+# Build output (none today, but future-proof)
+dist/
+build/
+.cache/
+
+# Environment
+.env
+.env.local
