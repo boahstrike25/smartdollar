@@ -1,7 +1,7 @@
 /* $martDollar service worker — offline-first cache for static shell.
    App data lives in IndexedDB and is never sent to the network. */
 
-const CACHE = 'smartdollar-v2';
+const CACHE = 'smartdollar-v3';
 const SHELL = [
   './',
   './index.html',

@@ -191,6 +191,7 @@
         "sidebar topbar"
         "sidebar main";
       min-height: 100vh;
+      min-height: 100dvh; /* dynamic viewport — handles mobile URL-bar collapse */
     }
     .sidebar {
       grid-area: sidebar;
@@ -219,28 +220,70 @@
       width: 100%;
     }
 
-    /* Mobile layout */
+    /* Mobile layout — sidebar becomes a compact bottom-tab bar.
+       Defensive !important on the critical positioning props so no later
+       cascade can let the desktop "height: 100vh; position: sticky" leak
+       through and cause the nav to cover the screen on portrait phones. */
     @media (max-width: 880px) {
       .app {
         grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
         grid-template-areas:
           "topbar"
-          "main"
-          "sidebar";
+          "main";
       }
       .sidebar {
-        position: fixed; bottom: 0; left: 0; right: 0; top: auto;
-        height: auto; border-right: none; border-top: 1px solid var(--c-border);
+        grid-area: auto !important;
+        position: fixed !important;
+        top: auto !important;
+        bottom: 0 !important;
+        left: 0; right: 0;
+        width: 100%;
+        height: auto !important;
+        max-height: calc(72px + env(safe-area-inset-bottom, 0px));
+        border-right: none;
+        border-top: 1px solid var(--c-border);
         padding: var(--gap-2);
-        z-index: 20;
-        overflow-x: auto; overflow-y: hidden;
+        padding-bottom: max(var(--gap-2), env(safe-area-inset-bottom, 8px));
+        z-index: 50;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
       }
       .sidebar .brand { display: none; }
-      .nav { display: flex; flex-direction: row; gap: 2px; }
-      .nav-item { flex: 1; flex-direction: column; gap: 2px; padding: 8px 4px; font-size: 11px; min-width: 64px; }
-      .nav-item .nav-icon { width: 22px; height: 22px; }
+      .nav {
+        display: flex;
+        flex-direction: row;
+        gap: 2px;
+        width: 100%;
+        min-width: 100%;
+      }
+      .nav-item {
+        flex: 1 1 0;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px 2px;
+        font-size: 10.5px;
+        min-width: 0;          /* let flex shrink so 6 tabs fit any phone */
+        line-height: 1.15;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .nav-item .nav-icon { width: 20px; height: 20px; }
       .nav-section-label { display: none; }
-      .main { padding: var(--gap-4) var(--gap-4) 96px; }
+      .main {
+        padding: var(--gap-3) var(--gap-4);
+        padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+      }
+      /* Quote banner sits a little tighter on phones */
+      .quote-banner { padding: 12px 14px; gap: 10px; }
+      .quote-banner .quote-text { font-size: 13px; }
+    }
+    /* Even narrower phones: drop the icon size further so labels are readable */
+    @media (max-width: 360px) {
+      .nav-item { font-size: 10px; padding: 6px 1px; }
+      .nav-item .nav-icon { width: 18px; height: 18px; }
     }
 
     /* ============================================================
@@ -309,6 +352,68 @@
       padding: 6px 12px; background: var(--c-surface-2);
       border-radius: var(--r-pill); border: 1px solid var(--c-border);
       font-size: 13px; font-weight: 600; color: var(--c-text-muted);
+    }
+
+    /* ============================================================
+       QUOTE BANNER — rotates on each app entry / refresh
+    ============================================================ */
+    .quote-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      margin-bottom: var(--gap-5);
+      background: var(--glass-bg);
+      backdrop-filter: blur(14px) saturate(180%);
+      -webkit-backdrop-filter: blur(14px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--r-lg);
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      position: relative;
+      overflow: hidden;
+    }
+    .quote-banner::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(20, 184, 166, 0.10) 0%, rgba(245, 158, 11, 0.04) 60%, transparent 100%);
+      pointer-events: none;
+    }
+    .quote-banner .quote-mark {
+      flex-shrink: 0;
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--c-primary-500), var(--c-primary-700));
+      color: #fff;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 4px 10px rgba(20, 184, 166, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+      position: relative;
+    }
+    .quote-banner .quote-text {
+      font-style: italic;
+      font-size: 14px;
+      color: var(--c-text-muted);
+      font-weight: 500;
+      line-height: 1.5;
+      position: relative;
+      flex: 1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .quote-banner::before {
+        background: linear-gradient(135deg, rgba(45, 212, 191, 0.10) 0%, rgba(252, 211, 77, 0.04) 60%, transparent 100%);
+      }
+      .quote-banner .quote-text { color: var(--c-text); opacity: 0.92; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .quote-banner { animation: quote-fade-in 600ms ease-out both; }
+    }
+    @keyframes quote-fade-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
     /* ============================================================

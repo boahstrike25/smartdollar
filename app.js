@@ -135,6 +135,94 @@ const BRAND_NAME = '$martDollar';
 const BrandMarkSVG = (size = 28) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="${size}" height="${size}" aria-hidden="true"><text x="14" y="21" font-size="22" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" fill="#ffffff" font-weight="900" letter-spacing="-0.5">$</text></svg>`;
 
 /* =========================================================================
+   2b. MOTIVATIONAL QUOTES — rotated on each app entry / refresh
+   ========================================================================= */
+const Quotes = [
+  "Keep going—small steps lead to big change.",
+  "Believe you can and you're halfway there.",
+  "Do the best you can. No one can do more than that.",
+  "Attitude is a little thing that makes a big difference.",
+  "It is never too late to be what you might have been.",
+  "Do what you can, with what you have, where you are.",
+  "It always seems impossible until it's done.",
+  "We will fail when we fail to try.",
+  "Whatever you are, be a good one.",
+  "All our dreams can come true \u2014 if we have the courage to pursue them.",
+  "Be yourself; everyone else is already taken.",
+  "Be the change you wish to see in the world.",
+  "Go the extra mile. It's never crowded there.",
+  "One positive thought in the morning can change your whole day.",
+  "It is hard to beat a person who never gives up.",
+  "Progress, not perfection.",
+  "Focus on impact; results will follow.",
+  "Stay consistent. Your future self will thank you.",
+  "Every effort counts. Keep building.",
+  "Progress is progress, no matter how small.",
+  "You are becoming someone you once needed.",
+  "Start where you are and rise from there.",
+  "Your future needs your effort today.",
+  "Strength grows in the moments that feel heavy.",
+  "You don\u2019t have to be perfect to be powerful.",
+  "Every step forward counts.",
+  "Your consistency will outshine your struggles.",
+  "Sometimes courage is just trying again tomorrow.",
+  "The version of you you\u2019re chasing is already possible.",
+  "Small habits shape big destinies.",
+  "Better days begin with better decisions.",
+  "Believe in the work you\u2019re doing, even before results show.",
+  "Your story is far from over.",
+  "You didn\u2019t come this far to stay the same.",
+  "Turn pressure into purpose.",
+  "You are building a life you will be proud of.",
+  "Don\u2019t fear failure \u2014 fear giving up.",
+  "Growth begins outside your comfort zone.",
+  "Work quietly, then let success speak.",
+  "Even slow progress beats standing still.",
+  "Your dreams deserve action, not hesitation.",
+  "One step today can change everything tomorrow.",
+  "You have what it takes \u2014 act like it.",
+  "Nothing changes if nothing changes.",
+  "Discipline is a form of self-love.",
+  "The comeback is always stronger than the setback.",
+  "Peace is also a goal worth chasing.",
+  "Use the struggle \u2014 don\u2019t waste it.",
+  "Who you become matters more than what you do.",
+  "Greatness follows patience and work.",
+  "You are allowed to start again.",
+  "Your pace is not the problem \u2014 quitting is.",
+  "When you can\u2019t control the situation, control your response.",
+  "Something great is quietly forming inside you.",
+  "Your future self is cheering you on.",
+  "Storms don\u2019t last \u2014 but strength does.",
+  "Excellence is built on ordinary days.",
+  "Success begins the moment you refuse to quit.",
+  "Remember why you started and keep going.",
+  "Your dreams are waiting for your courage.",
+  "Turn hope into a plan and a plan into action.",
+  "You are capable of more than you realize.",
+  "Doubt kills more dreams than failure ever will.",
+  "Nothing extraordinary happens inside a comfort zone.",
+  "Be proud of how far you\u2019ve come \u2014 you're not done yet.",
+  "Focus on progress, not perfection.",
+  "Inner peace is the real win.",
+  "Your energy introduces you before you speak.",
+  "You were made for more than fear.",
+  "With the right mindset, everything can shift.",
+  "The best project you\u2019ll ever work on is you.",
+  "A single decision can rewrite your entire life.",
+  "What you practice in private, you will be rewarded for in public.",
+  "Every challenge is shaping you for something greater.",
+  "Be disciplined enough to stay consistent.",
+  "Believe it, envision it, work for it.",
+  "Where focus goes, progress grows.",
+  "Don\u2019t shrink \u2014 rise.",
+  "You are the change your life has been waiting for.",
+];
+// Pick a quote ONCE per session/page-load so it stays steady while navigating
+// but rotates on every refresh.
+const TODAY_QUOTE = Quotes[Math.floor(Math.random() * Quotes.length)];
+
+/* =========================================================================
    2. ICONS — inline SVG (no external icon font needed)
    ========================================================================= */
 const Icon = (() => {
@@ -1049,7 +1137,18 @@ function AppShell(state, page) {
         }, h('span', { html: Icon.plus({ size: 16 }) }), 'Add'),
       ),
     ),
-    h('main', { id: 'main', class: 'main', tabIndex: -1 }, page),
+    h('main', { id: 'main', class: 'main', tabIndex: -1 },
+      QuoteBanner(),
+      page,
+    ),
+  );
+}
+
+// Inline motivational banner — rotates on each app entry / refresh.
+function QuoteBanner() {
+  return h('div', { class: 'quote-banner', role: 'status', 'aria-label': 'Motivation' },
+    h('span', { class: 'quote-mark', 'aria-hidden': 'true' }, '\u201C'),
+    h('p', { class: 'quote-text' }, TODAY_QUOTE),
   );
 }
 
