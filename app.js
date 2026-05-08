@@ -1092,14 +1092,16 @@ const Onboarding = {
    12. APP SHELL — sidebar + topbar layout
    ========================================================================= */
 function AppShell(state, page) {
-  const navItem = (path, label, iconKey) =>
+  const navItem = (path, label, shortLabel, iconKey) =>
     h('button', {
       class: ['nav-item', state.route === path ? 'active' : ''].filter(Boolean).join(' '),
       onClick: () => Router.go(path),
       'aria-current': state.route === path ? 'page' : null,
+      title: label,
     },
       h('span', { class: 'nav-icon', html: Icon[iconKey]({ size: 20 }) }),
-      h('span', null, label));
+      h('span', { class: 'nav-label-full' }, label),
+      h('span', { class: 'nav-label-short' }, shortLabel || label));
 
   const titles = {
     '/dashboard': 'Dashboard',
@@ -1117,13 +1119,13 @@ function AppShell(state, page) {
         h('span', { class: 'name' }, BRAND_NAME)),
       h('nav', { class: 'nav', 'aria-label': 'Sections' },
         h('div', { class: 'nav-section-label' }, 'Money'),
-        navItem('/dashboard',    'Dashboard',    'home'),
-        navItem('/transactions', 'Transactions', 'list'),
-        navItem('/budget',       'Budget',       'pie'),
-        navItem('/goals',        'Goals & Debt', 'target'),
+        navItem('/dashboard',    'Dashboard',    'Home',     'home'),
+        navItem('/transactions', 'Transactions', 'Activity', 'list'),
+        navItem('/budget',       'Budget',       'Budget',   'pie'),
+        navItem('/goals',        'Goals & Debt', 'Goals',    'target'),
         h('div', { class: 'nav-section-label' }, 'Grow'),
-        navItem('/learn',        'Learn',        'book'),
-        navItem('/settings',     'Settings',     'settings'),
+        navItem('/learn',        'Learn',        'Learn',    'book'),
+        navItem('/settings',     'Settings',     'Settings', 'settings'),
       ),
     ),
     h('header', { class: 'topbar' },

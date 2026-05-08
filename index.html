@@ -220,10 +220,12 @@
       width: 100%;
     }
 
-    /* Mobile layout — sidebar becomes a compact bottom-tab bar.
-       Defensive !important on the critical positioning props so no later
-       cascade can let the desktop "height: 100vh; position: sticky" leak
-       through and cause the nav to cover the screen on portrait phones. */
+    /* Mobile layout — bottom tab bar (iOS/Android convention for finance apps).
+       Each tab gets a readable label + icon; the bar is horizontally
+       scrollable as a safety net but should fit all 6 tabs at >=320px wide
+       thanks to short mobile labels (see .nav-label-short below).
+       Defensive !important keeps the desktop "position: sticky; height: 100vh"
+       rule from leaking through on any browser. */
     @media (max-width: 880px) {
       .app {
         grid-template-columns: 1fr;
@@ -240,51 +242,75 @@
         left: 0; right: 0;
         width: 100%;
         height: auto !important;
-        max-height: calc(72px + env(safe-area-inset-bottom, 0px));
+        max-height: none !important;
         border-right: none;
-        border-top: 1px solid var(--c-border);
-        padding: var(--gap-2);
-        padding-bottom: max(var(--gap-2), env(safe-area-inset-bottom, 8px));
+        border-top: 1px solid var(--glass-border);
+        background: var(--glass-bg-strong);
+        backdrop-filter: blur(20px) saturate(170%);
+        -webkit-backdrop-filter: blur(20px) saturate(170%);
+        box-shadow: 0 -2px 14px rgba(15, 23, 42, 0.06);
+        padding: 6px 6px;
+        padding-bottom: max(6px, env(safe-area-inset-bottom, 6px));
         z-index: 50;
         overflow-x: auto;
         overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
+        /* hide scrollbar — the bar should look like a polished tab bar */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
       }
+      .sidebar::-webkit-scrollbar { display: none; }
       .sidebar .brand { display: none; }
       .nav {
-        display: flex;
+        display: flex !important;
         flex-direction: row;
         gap: 2px;
         width: 100%;
         min-width: 100%;
+        justify-content: space-around;
+        align-items: stretch;
       }
       .nav-item {
-        flex: 1 1 0;
+        flex: 1 1 auto;
         flex-direction: column;
-        gap: 2px;
-        padding: 6px 2px;
-        font-size: 10.5px;
-        min-width: 0;          /* let flex shrink so 6 tabs fit any phone */
-        line-height: 1.15;
+        gap: 3px;
+        padding: 7px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        min-width: 52px;
+        line-height: 1.2;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        border-radius: 12px;
+        color: var(--c-text-muted);
+        align-items: center;
+        justify-content: center;
       }
-      .nav-item .nav-icon { width: 20px; height: 20px; }
+      .nav-item .nav-icon { width: 22px; height: 22px; }
+      .nav-item.active {
+        background: var(--c-primary-50);
+        color: var(--c-primary-800);
+      }
       .nav-section-label { display: none; }
+      /* Swap full-length labels for shorter mobile labels */
+      .nav-label-full  { display: none; }
+      .nav-label-short { display: inline; }
       .main {
         padding: var(--gap-3) var(--gap-4);
-        padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
       }
       /* Quote banner sits a little tighter on phones */
       .quote-banner { padding: 12px 14px; gap: 10px; }
       .quote-banner .quote-text { font-size: 13px; }
     }
-    /* Even narrower phones: drop the icon size further so labels are readable */
+    /* Even narrower phones (iPhone SE 1st gen, very small Androids):
+       slightly smaller font + tighter padding still keeps everything readable */
     @media (max-width: 360px) {
-      .nav-item { font-size: 10px; padding: 6px 1px; }
-      .nav-item .nav-icon { width: 18px; height: 18px; }
+      .nav-item { font-size: 10.5px; padding: 6px 4px; min-width: 48px; }
+      .nav-item .nav-icon { width: 20px; height: 20px; }
     }
+    /* Desktop: hide the short labels, show full ones */
+    .nav-label-short { display: none; }
+    .nav-label-full  { display: inline; }
 
     /* ============================================================
        SIDEBAR NAV
