@@ -1,7 +1,7 @@
 /* $martDollar service worker — offline-first cache for static shell.
    App data lives in IndexedDB and is never sent to the network. */
 
-const CACHE = 'smartdollar-v4';
+const CACHE = 'smartdollar-v5';
 const SHELL = [
   './',
   './index.html',
@@ -10,7 +10,15 @@ const SHELL = [
 ];
 
 // External CDN deps — cache opportunistically on first successful fetch.
-const RUNTIME_CDN_HOSTS = ['cdn.jsdelivr.net'];
+// Tesseract.js (receipt OCR) pulls its WASM core + eng.traineddata from
+// these hosts the first time the user scans a receipt; we cache them so
+// subsequent scans work fully offline.
+const RUNTIME_CDN_HOSTS = [
+  'cdn.jsdelivr.net',          // Dexie, Chart.js, Tesseract.js, tesseract-core
+  'unpkg.com',                 // fallback mirror used by some Tesseract builds
+  'tessdata.projectnaptha.com',// eng.traineddata language data
+  'raw.githubusercontent.com', // fallback for traineddata
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

@@ -619,6 +619,97 @@
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-3); }
     @media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } }
 
+    /* ------- Receipt scan button (top of transaction form) ------- */
+    .scan-row { position: relative; }
+    .btn-scan {
+      display: flex; align-items: center; gap: 12px;
+      width: 100%; padding: 12px 14px;
+      border-radius: var(--r-md);
+      border: 1px dashed var(--c-primary-600);
+      background: linear-gradient(135deg, rgba(15, 118, 110, 0.06), rgba(15, 118, 110, 0.02));
+      color: var(--c-primary-800);
+      text-align: left; cursor: pointer;
+      transition: background 120ms, border-color 120ms, transform 80ms;
+    }
+    .btn-scan:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(15, 118, 110, 0.04));
+      border-color: var(--c-primary-700);
+    }
+    .btn-scan:active:not(:disabled) { transform: scale(0.99); }
+    .btn-scan:disabled { opacity: 0.55; cursor: progress; }
+    .btn-scan-icon {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: var(--r-md);
+      background: var(--c-primary-600); color: white;
+    }
+    .btn-scan-text { display: flex; flex-direction: column; gap: 2px; }
+    .btn-scan-title { font-weight: 700; font-size: 14px; }
+    .btn-scan-sub { font-size: 12px; color: var(--c-text-subtle); font-weight: 500; }
+    @media (prefers-color-scheme: dark) {
+      .btn-scan { color: var(--c-primary-300); }
+      .btn-scan:hover:not(:disabled) {
+        background: linear-gradient(135deg, rgba(45, 212, 191, 0.18), rgba(45, 212, 191, 0.05));
+      }
+    }
+
+    /* "Auto-filled" hint shown next to a field label after a scan */
+    .field-autofill-hint {
+      margin-left: 8px;
+      font-size: 11px; font-weight: 500;
+      color: var(--c-primary-700);
+      background: rgba(15, 118, 110, 0.10);
+      padding: 1px 8px; border-radius: var(--r-pill);
+      letter-spacing: 0.01em;
+    }
+    @media (prefers-color-scheme: dark) {
+      .field-autofill-hint {
+        color: var(--c-primary-300);
+        background: rgba(45, 212, 191, 0.18);
+      }
+    }
+
+    /* Scanning progress overlay (rendered inside the modal during OCR) */
+    .scan-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border-radius: var(--r-lg);
+      z-index: 5;
+      animation: scan-overlay-in 180ms ease-out;
+    }
+    @keyframes scan-overlay-in {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .scan-progress-card {
+      width: min(320px, 90%);
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      padding: 20px;
+      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.25);
+      display: flex; flex-direction: column; gap: 12px;
+      text-align: center;
+    }
+    .scan-progress-title { font-weight: 700; font-size: 15px; color: var(--c-text); }
+    .scan-progress-bar {
+      width: 100%; height: 8px;
+      background: var(--c-surface-2);
+      border-radius: 999px; overflow: hidden;
+    }
+    .scan-progress-fill {
+      width: 0%; height: 100%;
+      background: linear-gradient(90deg, var(--c-primary-500), var(--c-primary-700));
+      border-radius: 999px;
+      transition: width 200ms ease-out;
+    }
+    .scan-progress-label { font-size: 13px; color: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+    .scan-progress-hint  { font-size: 11px; color: var(--c-text-subtle); }
+
     .toggle-group {
       display: inline-flex; gap: 4px; padding: 4px;
       background: var(--c-surface-2); border-radius: var(--r-pill);

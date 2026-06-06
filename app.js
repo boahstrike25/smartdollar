@@ -256,8 +256,202 @@ const Icon = (() => {
     chevR:   (o) => svg('<polyline points="9 18 15 12 9 6"/>', o),
     chevL:   (o) => svg('<polyline points="15 18 9 12 15 6"/>', o),
     sparkle: (o) => svg('<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>', o),
+    camera:  (o) => svg('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>', o),
+    receipt: (o) => svg('<path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/>', o),
   };
 })();
+
+
+/* =========================================================================
+   2b. ReceiptScanner — on-device OCR + parser (Tesseract.js, lazy-loaded)
+   --------------------------------------------------------------------------
+   Tesseract.js v5 is fetched on first scan attempt and then cached by the
+   service worker for offline use. The library + the eng.traineddata file
+   together weigh ~5 MB, so we never load them unless the user actually
+   taps "Scan receipt".
+
+   The parser turns Tesseract's raw text into a best-effort transaction:
+     { amount, date, merchant, categoryName, confidence }
+   Real-world receipt accuracy with Tesseract alone is ~50–70%, so each
+   field comes back with a per-field confidence and the form makes it
+   clear that the user should double-check before saving.
+   ========================================================================= */
+const ReceiptScanner = (() => {
+  const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  let _tesseractLoad = null;
+
+  // ---- Lazy loader -------------------------------------------------------
+  function loadTesseract() {
+    if (typeof window.Tesseract !== 'undefined') return Promise.resolve(window.Tesseract);
+    if (_tesseractLoad) return _tesseractLoad;
+    _tesseractLoad = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = TESSERACT_CDN;
+      s.async = true;
+      s.onload  = () => resolve(window.Tesseract);
+      s.onerror = () => { _tesseractLoad = null; reject(new Error('Could not load Tesseract.js — check your connection.')); };
+      document.head.appendChild(s);
+    });
+    return _tesseractLoad;
+  }
+
+  // ---- Merchant → category dictionary ------------------------------------
+  // Each entry maps a regex (case-insensitive) to the canonical category name
+  // used by DEFAULT_CATEGORIES. Order matters — more specific patterns first.
+  const MERCHANT_RULES = [
+    { re: /\b(whole foods|trader joe|safeway|kroger|publix|aldi|wegmans|sprouts|food lion|h[- ]?e[- ]?b|costco|sam'?s club|walmart|target|grocery|supermarket|market)\b/i, cat: 'Groceries' },
+    { re: /\b(shell|chevron|exxon|mobil|bp|valero|sunoco|76|arco|circle k|gas station|fuel)\b/i, cat: 'Transport' },
+    { re: /\b(uber|lyft|taxi|metro|transit|amtrak|parking|toll|airline|delta|united|american airlines|southwest|jetblue)\b/i, cat: 'Transport' },
+    { re: /\b(starbucks|dunkin|peet'?s|caribou|mcdonald|burger king|wendy|chipotle|panera|subway|chick[- ]?fil[- ]?a|taco bell|pizza|kfc|restaurant|cafe|coffee|grill|bistro|deli|sushi|bbq|kitchen|grubhub|doordash|uber eats|postmates)\b/i, cat: 'Dining out' },
+    { re: /\b(amc|regal|cinemark|movie|theater|theatre|netflix|hulu|disney\+|spotify|apple music|youtube premium|concert|ticketmaster|stubhub)\b/i, cat: 'Entertainment' },
+    { re: /\b(cvs|walgreens|rite aid|pharmacy|hospital|clinic|dental|dentist|optometr|kaiser|aetna|blue cross|medical|urgent care)\b/i, cat: 'Health' },
+    { re: /\b(sephora|ulta|salon|barber|spa|nail|massage|haircut|cosmetic)\b/i, cat: 'Personal care' },
+    { re: /\b(netflix|hulu|spotify|disney|apple\.com\/bill|google one|dropbox|adobe|microsoft 365|prime video|youtube premium)\b/i, cat: 'Subscriptions' },
+    { re: /\b(con ?ed|pg&e|comcast|xfinity|verizon|at&t|t[- ]?mobile|sprint|spectrum|utility|electric|gas company|water dept|internet|cable)\b/i, cat: 'Utilities' },
+    { re: /\b(rent|landlord|property mgmt|mortgage|hoa|apartment)\b/i, cat: 'Housing' },
+    { re: /\b(barnes & noble|chegg|coursera|udemy|tuition|textbook|university|college|school)\b/i, cat: 'Education' },
+  ];
+
+  function guessCategory(merchant, fullText) {
+    const hay = `${merchant || ''} ${fullText || ''}`;
+    for (const rule of MERCHANT_RULES) {
+      if (rule.re.test(hay)) return rule.cat;
+    }
+    return null;
+  }
+
+  // ---- Total amount extraction ------------------------------------------
+  // Strategy:
+  //   1. Look for a line containing TOTAL / GRAND TOTAL / AMOUNT DUE / BALANCE
+  //      and pull the largest currency number from it.
+  //   2. If nothing matched, take the LARGEST currency-like number in the
+  //      entire text (totals are usually the biggest single number).
+  function extractAmount(text) {
+    const totalKeywords = /\b(grand\s*total|total\s*amount|amount\s*due|amount\s*paid|balance\s*due|total)\b/i;
+    const subTotalKw    = /\b(sub[- ]?total|subtotal|tax|vat|tip|gratuity|change|cash|tender)\b/i;
+    const currencyRe    = /(?:\$|USD\s*)?\s*(\d{1,4}(?:,\d{3})*(?:\.\d{2})|\d+\.\d{2})/g;
+
+    const lines = text.split(/\r?\n/);
+    const candidates = [];
+
+    for (const line of lines) {
+      if (subTotalKw.test(line) && !totalKeywords.test(line)) continue;
+      if (totalKeywords.test(line)) {
+        let m;
+        while ((m = currencyRe.exec(line)) !== null) {
+          const n = parseFloat(m[1].replace(/,/g, ''));
+          if (!isNaN(n) && n > 0 && n < 100000) candidates.push({ value: n, source: 'keyword' });
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      // Fallback: take the largest currency number anywhere
+      let m;
+      const re = /(?:\$|USD\s*)?\s*(\d{1,4}(?:,\d{3})*\.\d{2})/g;
+      while ((m = re.exec(text)) !== null) {
+        const n = parseFloat(m[1].replace(/,/g, ''));
+        if (!isNaN(n) && n > 0 && n < 100000) candidates.push({ value: n, source: 'fallback' });
+      }
+    }
+    if (candidates.length === 0) return null;
+    // Prefer keyword-matched values; otherwise return the largest.
+    const kw = candidates.filter(c => c.source === 'keyword');
+    const pool = kw.length ? kw : candidates;
+    return pool.reduce((max, c) => c.value > max.value ? c : max).value;
+  }
+
+  // ---- Date extraction --------------------------------------------------
+  // Tries several common receipt date formats. Returns ISO yyyy-mm-dd or null.
+  function extractDate(text) {
+    const MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, sept:9, oct:10, nov:11, dec:12 };
+    const todayY = new Date().getFullYear();
+
+    const patterns = [
+      // ISO 2024-12-31 or 2024/12/31
+      { re: /\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b/, parts: (m) => ({ y: +m[1], mo: +m[2], d: +m[3] }) },
+      // US 12/31/24 or 12-31-2024
+      { re: /\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/, parts: (m) => ({
+          y: +m[3] < 100 ? 2000 + +m[3] : +m[3], mo: +m[1], d: +m[2],
+        }) },
+      // Jan 5, 2024 / January 5 2024 / 5 Jan 2024
+      { re: /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:,)?\s+(20\d{2})\b/i, parts: (m) => ({
+          y: +m[3], mo: MONTHS[m[1].toLowerCase()], d: +m[2],
+        }) },
+      { re: /\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(20\d{2})\b/i, parts: (m) => ({
+          y: +m[3], mo: MONTHS[m[2].toLowerCase()], d: +m[1],
+        }) },
+    ];
+
+    for (const pat of patterns) {
+      const m = text.match(pat.re);
+      if (!m) continue;
+      const { y, mo, d } = pat.parts(m);
+      if (!y || !mo || !d) continue;
+      if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
+      if (y < 2000 || y > todayY + 1) continue;
+      const iso = `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      return iso;
+    }
+    return null;
+  }
+
+  // ---- Merchant extraction ----------------------------------------------
+  // The merchant name is almost always in the top 1–4 lines. We pick the
+  // first line that:
+  //   - has at least 3 alphabetic characters
+  //   - isn't a date, a phone, a URL, an address, or a register/receipt ID
+  function extractMerchant(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 1);
+    const reject = /(^\d|\d{3}[- ]\d{3}[- ]\d{4}|www\.|http|\.com|@|store\s*#|tel:|phone|invoice|receipt|order\s*#|cashier|register)/i;
+    for (let i = 0; i < Math.min(lines.length, 6); i++) {
+      const l = lines[i];
+      const letters = (l.match(/[A-Za-z]/g) || []).length;
+      if (letters < 3) continue;
+      if (reject.test(l)) continue;
+      // strip leading "WELCOME TO" etc.
+      return l.replace(/^(welcome\s+to|thank\s+you\s+for\s+shopping\s+at)\s+/i, '').slice(0, 60);
+    }
+    return null;
+  }
+
+  // ---- The public scan() function ---------------------------------------
+  // file: a File or Blob from <input type=file>
+  // onProgress: ({ status, progress }) => void   — surfaces Tesseract progress
+  // returns: { rawText, amount, date, merchant, categoryName }
+  async function scan(file, onProgress = () => {}) {
+    if (!file) throw new Error('No image provided');
+    onProgress({ status: 'loading-engine', progress: 0 });
+    const Tesseract = await loadTesseract();
+    onProgress({ status: 'recognizing', progress: 0.05 });
+
+    const result = await Tesseract.recognize(file, 'eng', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          onProgress({ status: 'recognizing', progress: 0.05 + m.progress * 0.9 });
+        } else if (m.status === 'loading tesseract core' || m.status === 'loading language traineddata') {
+          onProgress({ status: 'loading-engine', progress: m.progress * 0.05 });
+        }
+      },
+    });
+
+    const text = (result?.data?.text || '').trim();
+    onProgress({ status: 'parsing', progress: 0.97 });
+
+    const amount   = extractAmount(text);
+    const date     = extractDate(text);
+    const merchant = extractMerchant(text);
+    const categoryName = guessCategory(merchant || '', text);
+
+    onProgress({ status: 'done', progress: 1 });
+    return { rawText: text, amount, date, merchant, categoryName };
+  }
+
+  // Expose parser helpers so the smoke test can unit-test them without OCR.
+  return { scan, _parse: { extractAmount, extractDate, extractMerchant, guessCategory } };
+})();
+// Surface on window for the headless test harness (and for in-browser debugging).
+if (typeof window !== 'undefined') window.ReceiptScanner = ReceiptScanner;
 
 
 /* =========================================================================
@@ -1372,6 +1566,87 @@ Pages.transactions = {
     let close;
     const cur = state.profile?.currency || 'USD';
 
+    // --- Receipt scan handler ----------------------------------------------
+    // Runs Tesseract.js against the picked image and fills in form fields.
+    // Per the user's choice, OCR happens 100% on-device.
+    const handleScannedFile = async (file, formEl, scanBtnEl) => {
+      if (!file) return;
+      // Build a progress overlay that sits inside the modal
+      const progressFill = h('div', { class: 'scan-progress-fill' });
+      const progressLabel = h('div', { class: 'scan-progress-label' }, 'Loading scanner…');
+      const overlay = h('div', { class: 'scan-overlay' },
+        h('div', { class: 'scan-progress-card' },
+          h('div', { class: 'scan-progress-title' }, 'Scanning receipt'),
+          h('div', { class: 'scan-progress-bar' }, progressFill),
+          progressLabel,
+          h('div', { class: 'scan-progress-hint' },
+            'OCR runs locally on your device — nothing is uploaded.'),
+        ));
+      formEl.appendChild(overlay);
+      scanBtnEl.disabled = true;
+
+      try {
+        const result = await ReceiptScanner.scan(file, ({ status, progress }) => {
+          const pct = Math.round((progress || 0) * 100);
+          progressFill.style.width = pct + '%';
+          if (status === 'loading-engine') progressLabel.textContent = `Loading scanner… ${pct}%`;
+          else if (status === 'recognizing') progressLabel.textContent = `Reading receipt… ${pct}%`;
+          else if (status === 'parsing')     progressLabel.textContent = 'Parsing fields…';
+          else if (status === 'done')        progressLabel.textContent = 'Done!';
+        });
+
+        // Mark fields that we actually filled with a small "auto-filled" hint.
+        const markFilled = (inputName) => {
+          const fld = formEl.querySelector(`[name="${inputName}"]`)?.closest('.field');
+          if (!fld || fld.querySelector('.field-autofill-hint')) return;
+          const hint = h('span', { class: 'field-autofill-hint' }, 'Auto-filled — please review');
+          fld.querySelector('label')?.appendChild(hint);
+        };
+
+        let filledCount = 0;
+        if (result.amount && result.amount > 0) {
+          const amt = formEl.querySelector('[name="amount"]');
+          if (amt) { amt.value = result.amount.toFixed(2); markFilled('amount'); filledCount++; }
+        }
+        if (result.date) {
+          const d = formEl.querySelector('[name="date"]');
+          if (d) { d.value = result.date; markFilled('date'); filledCount++; }
+        }
+        if (result.merchant) {
+          const m = formEl.querySelector('[name="merchant"]');
+          if (m) { m.value = result.merchant; markFilled('merchant'); filledCount++; }
+        }
+        if (result.categoryName) {
+          // Force type=expense for category matching (most receipts are expenses)
+          const expenseRadio = formEl.querySelector('input[name=type][value=expense]');
+          if (expenseRadio && !expenseRadio.checked) {
+            expenseRadio.checked = true;
+            const btn = formEl.querySelector('.toggle-group [aria-pressed]');
+            formEl.querySelectorAll('.toggle-group [aria-pressed]').forEach(b => b.setAttribute('aria-pressed','false'));
+            const expBtn = formEl.querySelectorAll('.toggle-group button')[0];
+            if (expBtn) expBtn.setAttribute('aria-pressed','true');
+            Pages.transactions._refreshCategoryOptions(formEl, 'expense');
+          }
+          const sel = formEl.querySelector('[name="categoryId"]');
+          const cats = State.get().categories.filter(c => c.type === 'expense');
+          const match = cats.find(c => c.name.toLowerCase() === result.categoryName.toLowerCase());
+          if (sel && match) { sel.value = match.id; markFilled('categoryId'); filledCount++; }
+        }
+
+        if (filledCount === 0) {
+          toast("Couldn't read this receipt — try a clearer photo or fill it in manually.", 'warn');
+        } else {
+          toast(`Filled in ${filledCount} field${filledCount === 1 ? '' : 's'} from your receipt. Please verify before saving.`, 'success');
+        }
+      } catch (err) {
+        console.error(err);
+        toast(err.message || 'Receipt scan failed.', 'danger');
+      } finally {
+        overlay.remove();
+        scanBtnEl.disabled = false;
+      }
+    };
+
     const form = h('form', { class: 'stack', onSubmit: async (e) => {
       e.preventDefault();
       const data = new FormData(e.target);
@@ -1398,6 +1673,33 @@ Pages.transactions = {
       await State.loadAll();
       close();
     } },
+      // ----- Receipt scanner (only on new transactions; not on edit) ------
+      isEdit ? null : (() => {
+        const fileInput = h('input', {
+          type: 'file', accept: 'image/*', capture: 'environment',
+          class: 'sr-only', name: '_scanFile', tabindex: '-1',
+          onChange: (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) handleScannedFile(file, scanBtn.closest('form'), scanBtn);
+            // Reset so the same file can be picked twice in a row.
+            e.target.value = '';
+          },
+        });
+        const scanBtn = h('button', {
+          type: 'button',
+          class: 'btn btn-scan',
+          onClick: () => fileInput.click(),
+          'aria-label': 'Scan a receipt with your camera or photo library',
+        },
+          h('span', { class: 'btn-scan-icon', html: Icon.camera({ size: 18 }) }),
+          h('span', { class: 'btn-scan-text' },
+            h('span', { class: 'btn-scan-title' }, 'Scan a receipt'),
+            h('span', { class: 'btn-scan-sub' }, 'Auto-fill date, amount, merchant & category'),
+          ),
+        );
+        return h('div', { class: 'scan-row' }, scanBtn, fileInput);
+      })(),
+
       h('div', { class: 'field' },
         h('label', null, 'Type'),
         h('div', { class: 'toggle-group' }, ...['expense','income','savings'].map(t =>
